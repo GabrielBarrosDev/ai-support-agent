@@ -4,10 +4,13 @@ from pydantic import BaseModel
 from ollama import chat
 import sqlite3
 import uuid
+from pathlib import Path
 
 app = FastAPI()
 
-DB_NAME = "conversas.db"
+BASE_DIR = Path(__file__).resolve().parent.parent
+DB_NAME = str(BASE_DIR / "conversas.db")
+FAQ_PATH = BASE_DIR / "documentos" / "faq.txt"
 
 
 # Cria a tabela do banco de dados
@@ -22,6 +25,62 @@ def criar_banco():
                 data DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+def carregar_faq():
+    if not FAQ_PATH.exists():
+        raise FileNotFoundError(
+            f"Arquivo de FAQ não encontrado: {FAQ_PATH}"
+        )
+
+    return FAQ_PATH.read_text(encoding="utf-8")
+
+
+def buscar_na_faq(pergunta: str) -> str:
+    faq = carregar_faq()
+
+    secoes = faq.split("\n\n")
+
+    termos_relacionados = {
+        "senha": ["senha", "acessar", "acesso", "login", "conta"],
+        "acesso": ["senha", "acessar", "acesso", "login", "conta"],
+        "conta": ["senha", "acessar", "acesso", "login", "conta"],
+        "suporte": ["suporte", "atendimento", "contato", "ajuda"],
+        "ajuda": ["suporte", "atendimento", "contato", "ajuda"],
+        "prazo": ["prazo", "tempo", "demora", "resposta"],
+        "resposta": ["prazo", "tempo", "demora", "resposta"],
+        "solicitação": ["solicitação", "protocolo", "acompanhar"],
+        "solicitacao": ["solicitacao", "protocolo", "acompanhar"],
+    }
+
+    palavras_pergunta = set(pergunta.lower().split())
+    palavras_busca = set(palavras_pergunta)
+
+    for palavra in palavras_pergunta:
+        palavras_busca.update(termos_relacionados.get(palavra, []))
+
+    melhor_secao = ""
+    maior_pontuacao = 0
+
+    for secao in secoes:
+        secao_lower = secao.lower()
+
+        pontuacao = sum(
+            1
+            for palavra in palavras_busca
+            if len(palavra) > 2 and palavra in secao_lower
+        )
+
+        if pontuacao > maior_pontuacao:
+            maior_pontuacao = pontuacao
+            melhor_secao = secao
+
+    if maior_pontuacao == 0:
+        return (
+            "Nenhuma informação relevante foi encontrada "
+            "na base de conhecimento."
+        )
+
+    return melhor_secao
 
 
 criar_banco()
@@ -83,6 +142,9 @@ def chat_endpoint(request: ChatRequest):
             "content": request.mensagem
         })
 
+        faq = buscar_na_faq(request.mensagem)
+
+        
         response = chat(
             model="llama3.1:8b",
             messages=[
@@ -91,12 +153,29 @@ def chat_endpoint(request: ChatRequest):
                     "content": (
                         "Você é um assistente de atendimento "
                         "educado e prestativo. Responda em "
-                        "português do Brasil."
+                        "português do Brasil.\n\n"
+                        "REGRAS IMPORTANTES:\n"
+                        "1. Use a base de conhecimento como fonte "
+                        "principal para responder às perguntas.\n"
+                        "2. Não invente políticas, prazos, contatos "
+                        "ou procedimentos.\n"
+                        "3. Se a base não contiver informação "
+                        "suficiente para responder, diga claramente "
+                        "que não encontrou essa informação e "
+                        "recomende contatar o suporte humano.\n"
+                        "4. Não sugira canais, contatos, links ou "
+                        "procedimentos que não estejam confirmados "
+                        "na base de conhecimento.\n"
+                        "5. Diferencie informações confirmadas de "
+                        "informações que não estão disponíveis.\n\n"
+                        "BASE DE CONHECIMENTO:\n"
+                        f"{faq}"
                     )
                 },
                 *historico
             ]
         )
+
 
         resposta = response.message.content
 
@@ -116,6 +195,9 @@ def chat_endpoint(request: ChatRequest):
         }
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
+
         raise HTTPException(
             status_code=502,
             detail=f"Erro ao processar a mensagem: {e}"

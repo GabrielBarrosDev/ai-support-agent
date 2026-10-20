@@ -1,0 +1,16 @@
+﻿FAQ - Atendimento ao Cliente
+
+1. Como posso entrar em contato com o suporte?
+O cliente pode entrar em contato pelo canal oficial de atendimento da empresa.
+
+2. Esqueci minha senha. O que devo fazer?
+O cliente deve utilizar a opcao "Esqueci minha senha" na tela de login e seguir as instrucoes recebidas.
+
+3. Quanto tempo demora para receber uma resposta?
+O prazo de resposta depende da disponibilidade da equipe de atendimento. Caso nao exista um prazo oficial informado, o agente nao deve inventar um.
+
+4. Como posso acompanhar minha solicitacao?
+O cliente deve consultar o canal oficial de atendimento e utilizar o numero de protocolo, caso tenha recebido um.
+
+5. O que fazer quando nao encontrar uma resposta?
+O agente deve informar que nao encontrou a informacao na base de conhecimento e recomendar o contato com o suporte humano.

@@ -174,3 +174,122 @@ def test_conversa_inexistente_retorna_lista_vazia(client):
         "mensagens": []
     }
 
+def test_faq_e_enviada_ao_ollama(client, monkeypatch):
+    chamadas = []
+
+    def chat_falso(**kwargs):
+        chamadas.append(kwargs)
+
+        return SimpleNamespace(
+            message=SimpleNamespace(
+                content="Consulte o canal oficial de atendimento."
+            )
+        )
+
+    monkeypatch.setattr(main, "chat", chat_falso)
+
+    response = client.post(
+        "/chat",
+        json={"mensagem": "Como entro em contato com o suporte?"}
+    )
+    
+    assert response.status_code == 200
+    assert len(chamadas) == 1
+
+    mensagens_enviadas = chamadas[0]["messages"]
+    mensagem_sistema = mensagens_enviadas[0]["content"]
+
+    print(repr(mensagem_sistema))
+
+    assert "BASE DE CONHECIMENTO" in mensagem_sistema
+    assert "Como posso entrar em contato com o suporte?" in mensagem_sistema
+    assert "Esqueci minha senha" not in mensagem_sistema
+
+def test_instrui_agente_a_nao_inventar_respostas(client, monkeypatch):
+    chamadas = []
+
+    def chat_falso(**kwargs):
+        chamadas.append(kwargs)
+
+        return SimpleNamespace(
+            message=SimpleNamespace(
+                content=(
+                    "Não encontrei essa informação na base "
+                    "de conhecimento. Recomendo contatar "
+                    "o suporte humano."
+                )
+            )
+        )
+
+    monkeypatch.setattr(main, "chat", chat_falso)
+
+    response = client.post(
+        "/chat",
+        json={"mensagem": "A empresa oferece reembolso em 24 horas?"}
+    )
+
+    assert response.status_code == 200
+
+    mensagens = chamadas[0]["messages"]
+    instrucao_sistema = mensagens[0]["content"]
+
+    assert "Não invente políticas" in instrucao_sistema
+    assert "não encontrou essa informação" in instrucao_sistema
+    assert "BASE DE CONHECIMENTO" in instrucao_sistema
+    assert "recomende contatar o suporte humano" in instrucao_sistema
+
+def test_buscar_faq_sobre_senha():
+    resultado = main.buscar_na_faq(
+        "Esqueci minha senha, como faço?"
+    )
+
+    assert "Esqueci minha senha" in resultado
+    assert "tela de login" in resultado
+
+
+def test_buscar_faq_sem_informacao_relevante():
+    resultado = main.buscar_na_faq(
+        "Qual é o endereço da empresa?"
+    )
+
+    assert (
+        "Nenhuma informação relevante foi encontrada"
+        in resultado
+    )
+
+def test_buscar_faq_com_termos_relacionados():
+    resultado = main.buscar_na_faq(
+        "Não consigo acessar minha conta"
+    )
+
+    assert "Esqueci minha senha" in resultado
+    assert "tela de login" in resultado
+
+
+def test_buscar_faq_sobre_prazo_de_resposta():
+    resultado = main.buscar_na_faq(
+        "Quanto tempo demora para responder?"
+    )
+
+    assert "Quanto tempo demora para receber uma resposta?" in resultado
+
+
+def test_buscar_faq_sobre_protocolo():
+    resultado = main.buscar_na_faq(
+        "Como acompanhar meu protocolo?"
+    )
+
+    assert "Como posso acompanhar minha solicitacao?" in resultado
+
+
+def test_buscar_faq_quando_usuario_nao_consegue_acessar_conta():
+    resultado = main.buscar_na_faq(
+        "Não consigo acessar minha conta"
+    )
+
+    assert "Esqueci minha senha" in resultado
+    assert "tela de login" in resultado
+
+
+
+
