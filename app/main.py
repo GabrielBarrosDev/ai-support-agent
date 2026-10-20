@@ -5,6 +5,7 @@ from ollama import chat
 import sqlite3
 import uuid
 from pathlib import Path
+import unicodedata
 
 app = FastAPI()
 
@@ -34,10 +35,22 @@ def carregar_faq():
 
     return FAQ_PATH.read_text(encoding="utf-8")
 
+def normalizar_texto(texto: str) -> str:
+    texto = texto.lower()
+    texto = unicodedata.normalize("NFD", texto)
+
+    texto = "".join(
+        caractere
+        for caractere in texto
+        if unicodedata.category(caractere) != "Mn"
+    )
+
+    return texto
+
 
 def buscar_na_faq(pergunta: str) -> str:
+    pergunta_normalizada = normalizar_texto(pergunta)
     faq = carregar_faq()
-
     secoes = faq.split("\n\n")
 
     termos_relacionados = {
@@ -48,11 +61,11 @@ def buscar_na_faq(pergunta: str) -> str:
         "ajuda": ["suporte", "atendimento", "contato", "ajuda"],
         "prazo": ["prazo", "tempo", "demora", "resposta"],
         "resposta": ["prazo", "tempo", "demora", "resposta"],
-        "solicitação": ["solicitação", "protocolo", "acompanhar"],
         "solicitacao": ["solicitacao", "protocolo", "acompanhar"],
+        "protocolo": ["solicitacao", "protocolo", "acompanhar"],
     }
 
-    palavras_pergunta = set(pergunta.lower().split())
+    palavras_pergunta = set(pergunta_normalizada.split())
     palavras_busca = set(palavras_pergunta)
 
     for palavra in palavras_pergunta:
@@ -62,13 +75,23 @@ def buscar_na_faq(pergunta: str) -> str:
     maior_pontuacao = 0
 
     for secao in secoes:
-        secao_lower = secao.lower()
+        secao_normalizada = normalizar_texto(secao)
 
         pontuacao = sum(
             1
             for palavra in palavras_busca
-            if len(palavra) > 2 and palavra in secao_lower
+            if len(palavra) > 2 and palavra in secao_normalizada
         )
+
+        if any(
+            termo in pergunta_normalizada
+            for termo in [
+                "acessar minha conta",
+                "acesso a conta",
+                "nao consigo acessar minha conta",
+            ]
+        ) and "esqueci minha senha" in secao_normalizada:
+            pontuacao += 3
 
         if pontuacao > maior_pontuacao:
             maior_pontuacao = pontuacao
@@ -195,9 +218,6 @@ def chat_endpoint(request: ChatRequest):
         }
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-
         raise HTTPException(
             status_code=502,
             detail=f"Erro ao processar a mensagem: {e}"

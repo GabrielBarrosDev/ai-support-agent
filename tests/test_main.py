@@ -290,6 +290,39 @@ def test_buscar_faq_quando_usuario_nao_consegue_acessar_conta():
     assert "Esqueci minha senha" in resultado
     assert "tela de login" in resultado
 
+def test_normalizar_texto_remove_acentos():
+    resultado = main.normalizar_texto("Solicitação de Acesso")
+
+    assert resultado == "solicitacao de acesso"
+
+
+def test_normalizar_texto_converte_para_minusculas():
+    resultado = main.normalizar_texto("SENHA E SUPORTE")
+
+    assert resultado == "senha e suporte"
+
+def test_buscar_faq_sem_acentos():
+    resultado = main.buscar_na_faq(
+        "Como acompanho minha solicitacao?"
+    )
+
+    assert "acompanhar minha solicitacao" in (
+        main.normalizar_texto(resultado)
+    )
+    assert "protocolo" in main.normalizar_texto(resultado)
+
+def test_buscar_faq_sobre_endereco_inexistente():
+    resultado = main.buscar_na_faq(
+        "Qual é o endereço físico da empresa?"
+    )
+
+    assert resultado == (
+        "Nenhuma informação relevante foi encontrada "
+        "na base de conhecimento."
+    )
+
+
+
 
 
 
